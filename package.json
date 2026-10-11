@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx test-journal.mjs && npx tsx test-quest.mjs && npx tsx test-geolocation.mjs"
+    "test": "npx tsx test-journal.mjs && npx tsx test-quest.mjs && npx tsx test-geolocation.mjs && npx tsx test-journal-milestone5.mjs && npx tsx test-audio-journal.mjs && npx tsx test-field-observations.mjs"
   },
   "dependencies": {
     "next": "16.4.0",

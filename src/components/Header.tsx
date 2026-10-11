@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import { OfflineStatus } from "@/components/OfflineStatus";
+import { InstallPrompt } from "@/components/InstallPrompt";
+
 interface StatusState {
   available: boolean;
   model: string;
@@ -69,7 +72,7 @@ export function Header() {
             <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               Bird Explorer
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                Milestone 1
+                PWA • Offline Field App
               </span>
             </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -78,32 +81,38 @@ export function Header() {
           </div>
         </div>
 
-        {/* Local AI status badge */}
-        <div className="flex items-center gap-2 text-xs font-medium px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 text-zinc-700 dark:text-zinc-300 shadow-sm">
-          <span className="relative flex h-2 w-2">
-            {status.checked && status.available ? (
-              <>
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </>
-            ) : status.checked ? (
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-            ) : (
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-zinc-400"></span>
-            )}
-          </span>
-          <span>Local AI • Ollama</span>
-          {status.checked && (
-            <span
-              className={`text-[11px] px-1.5 py-0.2 rounded font-mono ${
-                status.available
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-amber-600 dark:text-amber-400"
-              }`}
-            >
-              {status.available ? status.model : "offline"}
+        {/* Right Action Bar: Install Prompt + Offline Status + Local AI badge */}
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <InstallPrompt />
+          <OfflineStatus />
+
+          {/* Local AI status badge */}
+          <div className="flex items-center gap-2 text-xs font-medium px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 text-zinc-700 dark:text-zinc-300 shadow-sm">
+            <span className="relative flex h-2 w-2">
+              {status.checked && status.available ? (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </>
+              ) : status.checked ? (
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              ) : (
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-zinc-400"></span>
+              )}
             </span>
-          )}
+            <span>Local AI</span>
+            {status.checked && (
+              <span
+                className={`text-[11px] px-1.5 py-0.2 rounded font-mono ${
+                  status.available
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {status.available ? status.model : "offline"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </header>

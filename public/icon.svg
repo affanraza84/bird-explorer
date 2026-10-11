@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+    <linearGradient id="bird-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e6fffa" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#bg-grad)" />
+
+  <!-- Nature / Bird Icon Graphic -->
+  <g filter="url(#shadow)" fill="url(#bird-grad)">
+    <!-- Bird silhouette & wings -->
+    <path d="M140 330 C 120 280, 160 210, 240 180 C 270 170, 310 170, 340 190 C 370 160, 420 150, 440 170 C 430 190, 400 205, 380 215 C 400 240, 410 270, 390 310 C 360 370, 260 380, 190 360 C 160 350, 145 340, 140 330 Z" />
+    <!-- Bird eye -->
+    <circle cx="340" cy="210" r="12" fill="#059669" />
+    <!-- Beak -->
+    <path d="M380 215 L 430 225 L 375 240 Z" fill="#f59e0b" />
+    <!-- Wing arc feather detail -->
+    <path d="M210 280 Q 270 250, 320 300 Q 250 330, 210 280 Z" fill="#10b981" opacity="0.6" />
+    <!-- Grass / Branch perch -->
+    <path d="M90 390 Q 250 380, 430 400" stroke="#ffffff" stroke-width="16" stroke-linecap="round" fill="none" opacity="0.9" />
+    <path d="M180 385 Q 160 365, 140 375" stroke="#ffffff" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.8" />
+  </g>
+</svg>

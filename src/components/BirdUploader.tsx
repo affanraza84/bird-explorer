@@ -124,7 +124,9 @@ export function BirdUploader({
       }
     } catch {
       setErrorMessage(
-        "Network connection failed. Could not communicate with the Next.js server."
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? "AI identification is unavailable offline. Your journal and outdoor tools are still available."
+          : "Network connection failed. Could not communicate with the local AI service. Please verify Ollama is running."
       );
     } finally {
       setIsLoading(false);

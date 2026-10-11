@@ -148,11 +148,17 @@ export function QuestSection({
       saveActiveQuest(newQuest, initialProgress);
       onQuestStarted(newQuest, initialProgress);
     } catch (err: unknown) {
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Local AI could not generate a quest. Make sure Ollama is running."
-      );
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setErrorMessage(
+          "Quest generation requires the local AI service and is unavailable offline. Your existing quest and offline journal remain available."
+        );
+      } else {
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : "Local AI could not generate a quest. Make sure Ollama is running."
+        );
+      }
     } finally {
       setIsGenerating(false);
     }

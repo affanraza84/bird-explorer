@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BirdIdentification, BirdSighting } from "@/types/bird";
+import { BirdIdentification, BirdSighting, Habitat, WeatherCondition, ObservationTag } from "@/types/bird";
 import { saveSighting } from "@/lib/bird-journal";
+import { ObservationMetadataSelector } from "./ObservationMetadataSelector";
 
 interface ResultCardProps {
   result: BirdIdentification;
@@ -21,6 +22,11 @@ export function ResultCard({
   const [isSaved, setIsSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Optional observation metadata
+  const [habitat, setHabitat] = useState<Habitat | undefined>(undefined);
+  const [weatherCondition, setWeatherCondition] = useState<WeatherCondition | undefined>(undefined);
+  const [tags, setTags] = useState<ObservationTag[]>([]);
+
   const isUncertain =
     result.confidence.toLowerCase().includes("uncertain") ||
     result.species.toLowerCase().includes("unable") ||
@@ -38,6 +44,9 @@ export function ResultCard({
         confidence: result.confidence,
         description: result.description,
         image: imageFile,
+        habitat,
+        weatherCondition,
+        tags,
       });
 
       setIsSaved(true);
@@ -54,6 +63,8 @@ export function ResultCard({
       setIsSaving(false);
     }
   };
+
+  const metadataCount = (habitat ? 1 : 0) + (weatherCondition ? 1 : 0) + tags.length;
 
   return (
     <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-950/5 overflow-hidden transition-all duration-300">
@@ -105,6 +116,34 @@ export function ResultCard({
           </p>
         </div>
 
+        {/* Optional Field Metadata Section */}
+        <details className="group rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/40 p-4 transition-all">
+          <summary className="flex items-center justify-between cursor-pointer list-none select-none text-xs font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🌿</span>
+              <span>Field Observation Metadata</span>
+              <span className="text-[10px] lowercase text-zinc-400 font-normal">(optional)</span>
+              {metadataCount > 0 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  {metadataCount} tagged
+                </span>
+              )}
+            </div>
+            <span className="text-zinc-400 group-open:rotate-180 transition-transform text-xs">▼</span>
+          </summary>
+          <div className="pt-4 border-t border-zinc-200/60 dark:border-zinc-800/60 mt-3">
+            <ObservationMetadataSelector
+              selectedHabitat={habitat}
+              onHabitatChange={setHabitat}
+              selectedWeather={weatherCondition}
+              onWeatherChange={setWeatherCondition}
+              selectedTags={tags}
+              onTagsChange={setTags}
+              disabled={isSaved || isSaving}
+            />
+          </div>
+        </details>
+
         {/* Save to Journal Action Section */}
         <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -114,7 +153,7 @@ export function ResultCard({
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {isSaved
                 ? "This sighting is stored locally in your browser's IndexedDB."
-                : "Preserve this bird photo and identification in your offline field journal."}
+                : "Preserve this bird photo, metadata, and identification in your offline field journal."}
             </p>
           </div>
 
