@@ -1,83 +1,86 @@
-# Bird Explorer (Milestone 1)
+# Bird Explorer (Milestones 1, 2, 3 & 4)
 
 > Outdoor AI application for the **“Touch Grass” Open-Source AI Challenge**.  
-> Identify birds using a locally running open-weight AI model (`qwen2.5vl:3b` via Ollama). Zero external cloud AI APIs, 100% private and on-device.
+> Generate time-boxed outdoor bird missions, verify real outdoor movement using privacy-first browser GPS, identify species using a locally running open-weight AI model (`qwen2.5vl:3b` via Ollama), and persist discoveries in an offline field journal using IndexedDB. Zero external cloud AI APIs, zero remote tracking databases.
 
 ---
 
-## Architecture & Request Lifecycle
+## The “Touch Grass” Philosophy
+
+> **“The screen should be the shortest part of the experience.”**
+
+Bird Explorer is intentionally designed to minimize screen time in nature:
+1. **Time-Boxed Outdoor Mission**: The user selects how much time they have (15, 30, or 60 minutes).
+2. **Put the Device Away**: The application tells the user: *"Your mission is ready. Put your phone away and start exploring."*
+3. **Immerse in Nature**: Walk the trails, look up into tree canopies, listen for bird calls, and observe quietly.
+4. **On-Device Movement Validation**: As you walk, browser GPS accumulates distance traveled locally in memory.
+5. **Brief Interruption to Document**: Bring the device out only when spotting a bird to photograph and identify.
+6. **Real Progress & Completion**: Discoveries and verified outdoor walking contribute to completing the mission.
+
+---
+
+## Privacy-First GPS Outdoor Validation (Milestone 4)
+
+### Privacy Principle & Data Minimization
+- **No Cloud Transmission**: GPS coordinates are **never** sent to Ollama, **never** sent to a backend API, and **never** sent to any cloud server or telemetry provider.
+- **No Coordinate History Stored**: The application never saves a breadcrumb trail or database of where you walked. Exact coordinates are kept strictly in transient browser memory to calculate distance deltas between consecutive points.
+- **Derived Activity Data Only**: Only the accumulated outdoor distance (e.g. `650 m`) and verification status (`tracking` / `denied`) are stored in active quest state.
+- **Zero Lockout on Denied Permission**: If GPS permission is denied or unavailable, the application remains fully functional. Quests can still be completed with manual task verification, and the completion screen indicates distance was unverified.
+
+### Haversine Distance Calculation
+Distance between two geographic coordinates is calculated entirely on the client using the **Haversine formula**, accounting for Earth's curvature ($R = 6,371,000\text{ m}$):
+
+$$\Delta\text{lat} = \text{lat}_2 - \text{lat}_1, \quad \Delta\text{lon} = \text{lon}_2 - \text{lon}_1$$
+$$a = \sin^2\left(\frac{\Delta\text{lat}}{2}\right) + \cos(\text{lat}_1)\cos(\text{lat}_2)\sin^2\left(\frac{\Delta\text{lon}}{2}\right)$$
+$$c = 2 \cdot \text{atan2}\left(\sqrt{a}, \sqrt{1 - a}\right)$$
+$$d = R \cdot c$$
+
+### Segment Accumulation ($A \rightarrow B \rightarrow C$)
+Instead of measuring straight-line displacement between the starting point and current point (which would report near-zero distance if a user walks a complete loop back to their starting position), Bird Explorer accumulates delta segments:
+$$\text{Total Distance} = \text{dist}(A, B) + \text{dist}(B, C) + \text{dist}(C, D)$$
+
+### GPS Noise & Jitter Filtering
+Raw consumer GPS signals fluctuate even when a device is stationary on a park bench. Bird Explorer applies three defensive filters:
+1. **Accuracy Filtering**: Discards readings with an accuracy radius worse than **100 meters** (such as cell-tower triangulation).
+2. **Stationary Jitter Threshold**: Ignores movement increments under **8 meters** to eliminate stationary GPS drift.
+3. **Anomalous Speed Rejection**: Discards impossible teleportation spikes exceeding **25 m/s** (~90 km/h).
+
+### Battery Optimization
+- Uses `navigator.geolocation.watchPosition` instead of aggressive polling loops.
+- Automatically cleans up and releases hardware GPS listeners with `navigator.geolocation.clearWatch()` upon quest completion, quest cancellation, or component unmount.
+
+---
+
+## Architecture & System Flow
 
 ```
-[ Browser / UI ]
-       │
-       ▼ (multipart/form-data upload via FormData)
-[ Next.js API Route: POST /api/identify-bird ]
-       │
-       ├─ Validates MIME type (JPG, PNG, WEBP) & file size (≤ 10MB)
-       ├─ Converts image ArrayBuffer to Base64
-       │
-       ▼ (HTTP POST to http://localhost:11434/api/generate)
-[ Local Ollama Instance ]
-       │
-       ▼ (Executes vision weights locally on Apple Silicon / CPU / GPU)
-[ Qwen2.5-VL Vision Model (qwen2.5vl:3b) ]
-       │
-       ▼ (Returns structured JSON response)
-[ Next.js API Route ]
-       │
-       ▼ (JSON payload { success: true, result: { species, confidence, description } })
-[ React UI ]
+Browser
+│
+├── 📍 1. Privacy-First GPS Outdoor Validation (Milestone 4)
+│   ├── Requests navigator.geolocation only upon starting a quest
+│   ├── Calculates segment distances locally via Haversine formula
+│   ├── Filters stationary jitter (<8m) & inaccurate readings (>100m)
+│   ├── Tracks accumulated outdoor distance strictly in memory
+│   └── Releases hardware GPS watcher via clearWatch() on completion
+│
+├── 🎯 2. Outdoor Bird Quest System (Milestone 3)
+│   ├── User chooses duration (15 min, 30 min, 60 min)
+│   ├── POST /api/generate-quest prompts Ollama for structured tasks
+│   ├── Enforces deterministic distance goals (500m / 1.0km / 2.0km)
+│   └── Active quest state persisted in browser localStorage (survives refresh)
+│
+├── 🧠 3. Bird Identification Pipeline (Milestone 1)
+│   ├── User captures/uploads bird photo
+│   ├── POST /api/identify-bird sends image buffer to Ollama (qwen2.5vl:3b)
+│   ├── Model returns species identification
+│   └── Feeds into Active Quest:
+│       ├── Deduplicates species using normalized Set comparison
+│       └── Auto-completes photography tasks
+│
+└── 📖 4. Offline Bird Journal (Milestone 2)
+    ├── User clicks "Save to Journal" on ResultCard (explicit user control)
+    └── Stores sighting + high-resolution photo Blob in browser IndexedDB
 ```
-
----
-
-## Why the Browser Does Not Call Ollama Directly
-
-1. **Security & Network Isolation**: Ollama runs on `http://localhost:11434` without authentication by default. Direct browser calls risk Cross-Origin Resource Sharing (CORS) blocks, expose internal network details, and cannot enforce server-side validation or rate-limiting.
-2. **Payload Sanitization & Size Constraints**: Images are verified, typed, and size-capped on the server before consuming GPU/RAM memory on heavy AI inference.
-3. **Prompt & Schema Control**: The prompt instructions, structured JSON schema enforcement, and temperature settings are centralized on the server, preventing client tampering.
-4. **Clean Abstraction**: The frontend UI communicates with a standardized contract (`/api/identify-bird`), keeping the underlying AI runner configurable.
-
----
-
-## How the Image Reaches the Vision Model
-
-1. The user selects or drops an image in the React UI (`BirdUploader.tsx`).
-2. The browser creates an in-memory object URL for instant preview, packs the raw file into a `FormData` object, and issues a `POST` request to `/api/identify-bird`.
-3. The Next.js Route Handler (`src/app/api/identify-bird/route.ts`) reads the file buffer:
-   ```ts
-   const arrayBuffer = await file.arrayBuffer();
-   const base64Data = Buffer.from(arrayBuffer).toString("base64");
-   ```
-4. The Base64 string is included in the JSON payload sent to Ollama's `/api/generate` endpoint alongside the vision prompt and JSON schema request:
-   ```json
-   {
-     "model": "qwen2.5vl:3b",
-     "prompt": "You are a bird identification assistant...",
-     "images": ["<base64_string>"],
-     "stream": false,
-     "format": "json"
-   }
-   ```
-5. Ollama converts the image tokens into visual embeddings and passes them through the multimodal vision-language layers of `qwen2.5vl:3b`.
-
----
-
-## Understanding Ollama and Qwen2.5-VL
-
-### What Ollama Does
-- **Ollama** is a lightweight, open-source model execution runtime designed to run large language and multimodal models locally.
-- It manages model memory allocation (quantized GGUF files), GPU acceleration (Metal on macOS, CUDA on Linux/Windows), context windows, and exposes a clean HTTP REST API at `http://localhost:11434`.
-
-### What Qwen2.5-VL Does
-- **Qwen2.5-VL** (specifically `qwen2.5vl:3b`) is a multimodal Vision-Language model developed by the Qwen team.
-- Unlike text-only models, it possesses visual encoder blocks that tokenize image pixels directly, allowing it to "see" plumage patterns, beak geometry, posture, and environmental cues.
-- The 3B parameter version is optimized to run efficiently on consumer hardware (such as Apple Silicon MacBooks) while retaining strong ornithological and general vision capabilities.
-
-### Why This Qualifies as Local / Open-Weight AI
-- The model weights are downloaded directly to the local disk.
-- No inference requests are sent to OpenAI, Google, Anthropic, or any third-party cloud service.
-- The pipeline functions completely offline once the model weights are pulled.
 
 ---
 
@@ -107,47 +110,24 @@
    ```bash
    cp .env.example .env.local
    ```
-   Default contents:
-   ```env
-   OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_MODEL=qwen2.5vl:3b
+
+3. Run the automated test suite (IndexedDB journal + Quest progress + GPS Haversine validation):
+   ```bash
+   npm run test
    ```
 
-3. Start the Next.js development server:
+4. Start the Next.js development server:
    ```bash
    npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## API Reference
+## Automated Test Coverage
 
-### `POST /api/identify-bird`
-
-**Request**: `multipart/form-data` containing an `image` (or `file`) field (JPG, PNG, WEBP up to 10MB).
-
-**Success Response (200 OK)**:
-```json
-{
-  "success": true,
-  "result": {
-    "species": "Northern Cardinal (Cardinalis cardinalis)",
-    "confidence": "Possible match",
-    "description": "A vibrant red bird with a distinctive crest on its head, perched on a branch. The beak is short and stout, typical of cardinals..."
-  }
-}
-```
-
-**Error Response (400 / 500)**:
-```json
-{
-  "success": false,
-  "error": "Ollama is not running. Start Ollama and try again."
-}
-```
-
-### `GET /api/status`
-
-Health-check endpoint to verify if local Ollama daemon is reachable and whether the target vision model is available.
+The test suite covers all four milestones without external hardware dependencies:
+- **`test-journal.mjs`**: IndexedDB initialization, binary Blob storage, chronological sorting, single deletion, clearing.
+- **`test-quest.mjs`**: Quest generation schema, duplicate species normalization (`Set`), task toggling, completion detection, `localStorage` persistence.
+- **`test-geolocation.mjs`**: Haversine distance accuracy, segment accumulation, stationary jitter filtering (<8m), poor accuracy rejection (>100m), clearWatch cleanup, and permission-denied fallbacks.

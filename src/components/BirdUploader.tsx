@@ -2,13 +2,21 @@
 
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
 import Image from "next/image";
-import { BirdIdentification, IdentifyBirdResponse } from "@/types/bird";
+import { BirdIdentification, BirdSighting, IdentifyBirdResponse } from "@/types/bird";
 import { ResultCard } from "@/components/ResultCard";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
-export function BirdUploader() {
+interface BirdUploaderProps {
+  onSightingSaved?: (sighting: BirdSighting) => void;
+  onBirdIdentified?: (species: string) => void;
+}
+
+export function BirdUploader({
+  onSightingSaved,
+  onBirdIdentified,
+}: BirdUploaderProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -110,6 +118,9 @@ export function BirdUploader() {
         );
       } else {
         setResult(data.result);
+        if (onBirdIdentified && data.result.species) {
+          onBirdIdentified(data.result.species);
+        }
       }
     } catch {
       setErrorMessage(
@@ -313,7 +324,9 @@ export function BirdUploader() {
       {result && (
         <ResultCard
           result={result}
+          imageFile={selectedFile}
           onReset={handleReset}
+          onSightingSaved={onSightingSaved}
         />
       )}
     </div>
