@@ -111,11 +111,15 @@ export function QuestSection({
 
       if (!response.ok || !data.success) {
         throw new Error(
-          data.error || "Local AI could not generate a quest. Make sure Ollama is running."
+          data.error || "Could not generate a quest. Please try again."
         );
       }
 
-      const newQuest: Quest = data.quest;
+      const newQuest: Quest = {
+        ...data.quest,
+        source: data.generationSource || data.quest.source,
+        sourceNotice: data.message || data.quest.sourceNotice,
+      };
 
       // 2. Request browser location permission & capture initial position
       let initialStatus: LocationTrackingStatus = "idle";
@@ -320,10 +324,20 @@ export function QuestSection({
         {/* Header & Status */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                 Active Mission • {activeQuest.durationMinutes} min
               </span>
+
+              {activeQuest.source === "builtin" ? (
+                <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                  Built-in Quest
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
+                  AI-Generated
+                </span>
+              )}
 
               {/* GPS Status Pill */}
               <span
@@ -364,6 +378,19 @@ export function QuestSection({
             End / Change Quest
           </button>
         </div>
+
+        {/* Built-in quest subtle notice */}
+        {activeQuest.source === "builtin" && (
+          <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+            <span className="text-base shrink-0 mt-0.5">ℹ️</span>
+            <div className="leading-relaxed">
+              <p className="font-semibold mb-0.5">Using Built-in Quest</p>
+              <p className="text-amber-800/90 dark:text-amber-300/90">
+                {activeQuest.sourceNotice || "Using a built-in quest because local AI is unavailable."} All outdoor tracking, photography tasks, and GPS goals are fully functional.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Touch Grass Philosophy Banner */}
         <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 flex items-start gap-3">
@@ -514,7 +541,7 @@ export function QuestSection({
           Start a Bird Quest
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Generate an AI mission, put your screen away to touch grass, and verify your outdoor movement.
+          Start an outdoor mission, put your screen away to touch grass, and verify your outdoor movement.
         </p>
       </div>
 
@@ -574,7 +601,7 @@ export function QuestSection({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              <span>Generating mission with local AI…</span>
+              <span>Preparing mission…</span>
             </>
           ) : (
             <>

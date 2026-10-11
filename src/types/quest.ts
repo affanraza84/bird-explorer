@@ -15,6 +15,8 @@ export interface GeoCoordinates {
   longitude: number;
 }
 
+export type QuestGenerationSource = "ollama" | "builtin";
+
 export interface QuestTask {
   id: string;
   text: string;
@@ -30,6 +32,8 @@ export interface Quest {
   distanceTargetMeters: number;
   tasks: QuestTask[];
   createdAt: number;
+  source?: QuestGenerationSource;
+  sourceNotice?: string;
 }
 
 export interface QuestProgress {
@@ -50,6 +54,8 @@ export interface GenerateQuestRequest {
 export interface GenerateQuestSuccessResponse {
   success: true;
   quest: Quest;
+  generationSource: QuestGenerationSource;
+  message?: string;
 }
 
 export interface GenerateQuestErrorResponse {

@@ -236,7 +236,7 @@ Bird Explorer maintains a strict, transparent separation of concerns:
    cp .env.example .env.local
    ```
 
-3. Run the automated test suite (IndexedDB journal + Quest progress + GPS Haversine validation + Field Checklist):
+3. Run the automated test suite (IndexedDB journal + Quest progress + GPS Haversine validation + Field Checklist + Quest Generation Fallback):
    ```bash
    npm run test
    ```
@@ -250,6 +250,24 @@ Bird Explorer maintains a strict, transparent separation of concerns:
 
 ---
 
+## Production Deployment Architecture: Vercel Fallback vs. Local Ollama AI
+
+Bird Explorer is built for outdoor reliability, privacy, and zero lock-in:
+
+| Environment | Outdoor Quest Generation | Bird Photo Identification | Offline Journal, GPS & Checklist |
+| :--- | :--- | :--- | :--- |
+| **Local Machine** (`localhost:3000` + Ollama) | Powered by local LLM (`qwen3:4b` via `localhost:11434`) | Open-weight vision AI (`qwen2.5vl:3b` via `localhost:11434`) | 100% on-device (IndexedDB, Geolocation API, Web Audio) |
+| **Deployed Environment** (Vercel Serverless) | Validated deterministic built-in missions (15/30/60 min targets) | Transparent error explaining local vision model requirement; manual checklist logging | 100% on-device (IndexedDB, Geolocation API, Web Audio) |
+
+### Key Guarantees:
+1. **Deterministic Quest Fallback**: If local Ollama is unavailable or times out, the backend gracefully serves pre-bundled, human-crafted missions respecting exact duration (15/30/60 min) and distance targets (500m/1.0km/2.0km).
+2. **Honest Source Attribution**: The API returns `generationSource: "ollama" | "builtin"`, and the UI displays clear tags (`AI-Generated` vs. `Built-in Quest`) so users are never misled.
+3. **Strict Error Isolation**: Malformed model outputs, duration validation failures, and genuine request errors return explicit error responses rather than being masked by the fallback.
+4. **Honest Vision Error**: Photo identification never hallucinates or fabricates IDs when the vision model is unreachable, and never transmits photos to external cloud services.
+5. **Full Privacy Preserved**: No public tunnels into localhost, no GPS transmissions to external endpoints.
+
+---
+
 ## Automated Test Coverage
 
 The test suite covers all milestones without external hardware or cloud dependencies:
@@ -259,3 +277,4 @@ The test suite covers all milestones without external hardware or cloud dependen
 - **`test-journal-milestone5.mjs`**: Case-insensitive and whitespace-tolerant search, multi-criteria filtering, species taxonomy normalization, live stats computation, RFC 4180 CSV escaping, Base64 JSON export preparation, and graceful empty state handling.
 - **`test-audio-journal.mjs`**: 60-second audio duration boundaries, MIME type detection, IndexedDB v2 schema migration, optional audio persistence and retrieval, attaching/removing audio on existing sightings, Base64 audio JSON export, metadata-only CSV export, and PWA manifest/service-worker file integrity.
 - **`test-field-observations.mjs`**: Habitat validation, weather condition validation, behavior tag deduplication, 48-species checklist loading, client-side search and habitat filtering, deterministic AI checklist mapping, IndexedDB v3 checklist history persistence, photo-less manual field observations, observation metadata editing, and quest discovery tracking.
+- **`test-quest-generation.mjs`**: Successful Ollama quest generation, deterministic fallback on connection refusal/timeout, 400 validation on invalid duration, 500 error propagation on malformed/empty model output, honest error reporting for unavailable vision model, and strict quest schema validation.

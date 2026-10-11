@@ -4,6 +4,51 @@ import { Quest, QuestDuration, QuestTask, QuestTaskType } from "@/types/quest";
 export const OLLAMA_BASE_URL =
   process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 export const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5vl:3b";
+export const OLLAMA_QUEST_MODEL =
+  process.env.OLLAMA_QUEST_MODEL || "qwen3:4b";
+
+export class OllamaUnavailableError extends Error {
+  constructor(message: string, public readonly originalError?: unknown) {
+    super(message);
+    this.name = "OllamaUnavailableError";
+  }
+}
+
+export class OllamaModelError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OllamaModelError";
+  }
+}
+
+/**
+ * Checks whether an error represents Ollama being unreachable, timed out, or stopped.
+ */
+export function isOllamaUnavailableError(err: unknown): boolean {
+  if (err instanceof OllamaUnavailableError) {
+    return true;
+  }
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    const name = err.name.toLowerCase();
+    if (
+      name === "aborterror" ||
+      msg.includes("econnrefused") ||
+      msg.includes("fetch failed") ||
+      msg.includes("enotfound") ||
+      msg.includes("ehostunreach") ||
+      msg.includes("network error") ||
+      msg.includes("timed out") ||
+      msg.includes("local ai could not generate a quest") ||
+      msg.includes("ollama is not running") ||
+      msg.includes("unable to connect to ollama") ||
+      msg.includes("service unavailable")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 const SYSTEM_PROMPT = `You are a bird identification assistant. Analyze the image and identify the bird species.
 
@@ -57,14 +102,19 @@ export async function identifyBirdWithOllama(
       }
       if (
         err.message.includes("ECONNREFUSED") ||
-        err.message.includes("fetch failed")
+        err.message.includes("fetch failed") ||
+        err.message.includes("ENOTFOUND") ||
+        err.message.includes("EHOSTUNREACH")
       ) {
-        throw new Error("Ollama is not running. Start Ollama and try again.");
+        throw new Error(
+          "Local AI vision model is unavailable. In a deployed environment or when Ollama is not running locally, photo identification requires a local Ollama instance (qwen2.5vl:3b at http://localhost:11434). You can still log observations manually via the offline Regional Checklist."
+        );
       }
     }
     throw new Error(
-      "Unable to connect to Ollama. Ensure Ollama is running on " +
-        OLLAMA_BASE_URL
+      "Unable to connect to Ollama on " +
+        OLLAMA_BASE_URL +
+        ". Vision identification requires a local Ollama instance."
     );
   } finally {
     clearTimeout(timeoutId);
@@ -188,7 +238,7 @@ Output ONLY valid JSON adhering strictly to this structure:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: OLLAMA_QUEST_MODEL,
         prompt,
         stream: false,
         format: "json",
@@ -202,35 +252,46 @@ Output ONLY valid JSON adhering strictly to this structure:
     clearTimeout(timeoutId);
     if (err instanceof Error) {
       if (err.name === "AbortError") {
-        throw new Error(
-          "Quest generation timed out. Your local system may be under load. Please try again."
+        throw new OllamaUnavailableError(
+          "Quest generation timed out. Local AI service took too long to respond.",
+          err
         );
       }
       if (
         err.message.includes("ECONNREFUSED") ||
-        err.message.includes("fetch failed")
+        err.message.includes("fetch failed") ||
+        err.message.includes("ENOTFOUND") ||
+        err.message.includes("EHOSTUNREACH")
       ) {
-        throw new Error(
-          "Local AI could not generate a quest. Make sure Ollama is running."
+        throw new OllamaUnavailableError(
+          "Local AI could not generate a quest. Make sure Ollama is running.",
+          err
         );
       }
     }
-    throw new Error(
+    throw new OllamaUnavailableError(
       "Unable to connect to Ollama. Ensure Ollama is running on " +
-        OLLAMA_BASE_URL
+        OLLAMA_BASE_URL,
+      err
     );
   } finally {
     clearTimeout(timeoutId);
   }
 
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new OllamaUnavailableError(
+      `Ollama service unavailable (HTTP ${response.status}).`
+    );
+  }
+
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     if (response.status === 404 || errorText.toLowerCase().includes("not found")) {
-      throw new Error(
-        `Model '${OLLAMA_MODEL}' not found in Ollama. Run 'ollama pull ${OLLAMA_MODEL}'.`
+      throw new OllamaModelError(
+        `Model '${OLLAMA_QUEST_MODEL}' not found in Ollama. Run 'ollama pull ${OLLAMA_QUEST_MODEL}'.`
       );
     }
-    throw new Error(
+    throw new OllamaModelError(
       `Ollama quest generation failed (${response.status}): ${errorText || response.statusText}`
     );
   }
@@ -238,7 +299,7 @@ Output ONLY valid JSON adhering strictly to this structure:
   const data = (await response.json()) as { response?: string };
 
   if (!data || typeof data.response !== "string" || !data.response.trim()) {
-    throw new Error("Ollama returned an empty response for quest generation.");
+    throw new OllamaModelError("Ollama returned an empty response for quest generation.");
   }
 
   let parsed: unknown;
@@ -254,13 +315,19 @@ Output ONLY valid JSON adhering strictly to this structure:
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error(
+      throw new OllamaModelError(
         "Model returned invalid JSON for the quest. Please try again."
       );
     }
   }
 
-  const obj = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+  if (!parsed || typeof parsed !== "object") {
+    throw new OllamaModelError(
+      "Model returned invalid JSON structure for the quest."
+    );
+  }
+
+  const obj = parsed as Record<string, unknown>;
 
   // Validate and sanitize title
   const title =
@@ -311,5 +378,6 @@ Output ONLY valid JSON adhering strictly to this structure:
     distanceTargetMeters,
     tasks,
     createdAt: Date.now(),
+    source: "ollama",
   };
 }
