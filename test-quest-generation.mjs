@@ -121,6 +121,40 @@ try {
   assert.strictEqual(dataSuccess.quest.title, "30-Minute Morning Woodland Trail");
   console.log("✓ Successful Ollama quest generation verified");
 
+  // 3b. Test Ollama Reasoning/Thinking Model output (response: "", thinking: "{...}")
+  console.log("\n3b. Testing Ollama Reasoning/Thinking Model (e.g. qwen3:4b)...");
+  globalThis.fetch = async () => {
+    return new Response(
+      JSON.stringify({
+        response: "",
+        thinking: JSON.stringify({
+          title: "15-Minute Forest Canopy Expedition",
+          durationMinutes: 15,
+          targetBirds: 1,
+          tasks: [
+            "Spot 1 bird in the forest canopy",
+            "Photograph 1 bird perched",
+            "Listen for 2 minutes to bird calls",
+          ],
+        }),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+
+  const reqThinking = {
+    json: async () => ({ durationMinutes: 15 }),
+  };
+  const resThinking = await generateQuestRoute(reqThinking);
+  const dataThinking = await resThinking.json();
+
+  assert.strictEqual(resThinking.status, 200);
+  assert.strictEqual(dataThinking.success, true);
+  assert.strictEqual(dataThinking.generationSource, "ollama");
+  assert.strictEqual(dataThinking.quest.durationMinutes, 15);
+  assert.strictEqual(dataThinking.quest.title, "15-Minute Forest Canopy Expedition");
+  console.log("✓ Reasoning model output in thinking field parsed and verified");
+
   // 4. Test Ollama Unavailable Fallback (Connection Refused / fetch failed)
   console.log("\n4. Testing Ollama Unavailable Fallback (ECONNREFUSED)...");
   globalThis.fetch = async () => {

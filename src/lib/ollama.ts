@@ -50,6 +50,46 @@ export function isOllamaUnavailableError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Safely extracts and parses JSON from raw model output, supporting markdown fences,
+ * thinking tokens, and embedded JSON objects.
+ */
+function extractAndParseJson(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // 1. Direct parse attempt
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Continue
+  }
+
+  // 2. Remove markdown code fences if present
+  const strippedFences = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(strippedFences);
+  } catch {
+    // Continue
+  }
+
+  // 3. Extract outermost JSON object { ... }
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+    } catch {
+      // Continue
+    }
+  }
+
+  return null;
+}
+
 const SYSTEM_PROMPT = `You are a bird identification assistant. Analyze the image and identify the bird species.
 
 Guidelines:
@@ -132,30 +172,29 @@ export async function identifyBirdWithOllama(
     );
   }
 
-  const data = (await response.json()) as { response?: string };
+  const data = (await response.json()) as {
+    response?: string;
+    thinking?: string;
+  };
 
-  if (!data || typeof data.response !== "string" || !data.response.trim()) {
+  const responseText =
+    typeof data?.response === "string" ? data.response.trim() : "";
+  const thinkingText =
+    typeof data?.thinking === "string" ? data.thinking.trim() : "";
+
+  if (!responseText && !thinkingText) {
     throw new Error("Ollama returned an empty response.");
   }
 
-  let parsed: unknown;
-  const rawText = data.response.trim();
+  let parsed: unknown = responseText ? extractAndParseJson(responseText) : null;
+  if (!parsed && thinkingText) {
+    parsed = extractAndParseJson(thinkingText);
+  }
 
-  try {
-    parsed = JSON.parse(rawText);
-  } catch {
-    // If wrapped in markdown code blocks, strip them
-    const cleaned = rawText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new Error(
-        "Model returned an unexpected response format. Please try again."
-      );
-    }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(
+      "Model returned an unexpected response format. Please try again."
+    );
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -296,29 +335,25 @@ Output ONLY valid JSON adhering strictly to this structure:
     );
   }
 
-  const data = (await response.json()) as { response?: string };
+  const data = (await response.json()) as {
+    response?: string;
+    thinking?: string;
+  };
 
-  if (!data || typeof data.response !== "string" || !data.response.trim()) {
-    throw new OllamaModelError("Ollama returned an empty response for quest generation.");
+  const responseText =
+    typeof data?.response === "string" ? data.response.trim() : "";
+  const thinkingText =
+    typeof data?.thinking === "string" ? data.thinking.trim() : "";
+
+  if (!responseText && !thinkingText) {
+    throw new OllamaModelError(
+      "Ollama returned an empty response for quest generation."
+    );
   }
 
-  let parsed: unknown;
-  const rawText = data.response.trim();
-
-  try {
-    parsed = JSON.parse(rawText);
-  } catch {
-    const cleaned = rawText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new OllamaModelError(
-        "Model returned invalid JSON for the quest. Please try again."
-      );
-    }
+  let parsed: unknown = responseText ? extractAndParseJson(responseText) : null;
+  if (!parsed && thinkingText) {
+    parsed = extractAndParseJson(thinkingText);
   }
 
   if (!parsed || typeof parsed !== "object") {
